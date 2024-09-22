@@ -12,22 +12,26 @@ import (
 )
 
 const (
-	templatePath = "../../static/templates"
-	layoutFile   = "../../static/templates/base.layout.tmpl"
+	templatePath = "templates/"
+	layoutFile   = "templates/base.layout.tmpl"
 )
+
+var appConfig *config.AppConfig
 
 type Renderer struct {
 	Render        func(out http.ResponseWriter, tmpl string, tc map[string]*template.Template) error
 	TemplateCache map[string]*template.Template
 }
 
-func New(app *config.AppConfig) *Renderer {
-	tc, err := TemplateCache()
+func New(conf *config.AppConfig) *Renderer {
+	tc, err := templateCache()
 	if err != nil {
 		log.Fatalf("failed to create template cache. got=%s", err)
 	}
+	appConfig = conf
+
 	return &Renderer{
-		Render:        Render,
+		Render:        render,
 		TemplateCache: tc,
 	}
 }
@@ -35,7 +39,15 @@ func New(app *config.AppConfig) *Renderer {
 func DefaultData() {
 }
 
-func Render(out http.ResponseWriter, tmpl string, tc map[string]*template.Template) error {
+func render(out http.ResponseWriter, tmpl string, tc map[string]*template.Template) error {
+	if !appConfig.InProduction {
+		var err error
+		tc, err = templateCache()
+		if err != nil {
+			return err
+		}
+	}
+
 	t, ok := tc[tmpl]
 	if !ok {
 		return fmt.Errorf("template %s not stored in template cache", tmpl)
@@ -58,7 +70,7 @@ func Render(out http.ResponseWriter, tmpl string, tc map[string]*template.Templa
 	return nil
 }
 
-func TemplateCache() (map[string]*template.Template, error) {
+func templateCache() (map[string]*template.Template, error) {
 	templateCache := make(map[string]*template.Template)
 	// list *.pages.tmpl files
 	templateFiles, err := filepath.Glob(fmt.Sprintf("%s/*.pages.tmpl", templatePath))
